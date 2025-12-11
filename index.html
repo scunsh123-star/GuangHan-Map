@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数智赋能乡村 · 广汉调研成果</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <!-- Leaflet MiniMap CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet-minimap/3.6.1/Control.MiniMap.min.css" />
+    <!-- Leaflet Measure CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-measure@3.1.0/dist/leaflet-measure.css" />
+
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            width: 100%;
+            background-color: #222;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+            display: block; /* 强制块级显示 */
+        }
+
+        /* --- UI组件：赛博朋克风格标题 --- */
+        .custom-title {
+            position: absolute;
+            top: 20px;
+            left: 60px;
+            z-index: 1000;
+            background-color: rgba(0, 0, 0, 0.85);
+            padding: 15px 25px;
+            border-radius: 4px;
+            border-left: 5px solid #00eaeb;
+            color: white;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 0 20px rgba(0, 234, 235, 0.3);
+            pointer-events: none;
+        }
+
+        .custom-title h2 {
+            margin: 0 0 5px 0;
+            font-size: 24px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            text-shadow: 0 0 10px #00eaeb;
+        }
+
+        .custom-title .subtitle {
+            font-size: 14px;
+            color: #cccccc;
+            display: block;
+            margin-bottom: 8px;
+        }
+
+        .custom-title .tag {
+            font-size: 11px;
+            color: #000;
+            background-color: #00eaeb;
+            font-weight: bold;
+            padding: 2px 6px;
+            border-radius: 2px;
+            margin-right: 5px;
+        }
+
+        /* --- UI组件：乡镇快速导航中控台 --- */
+        .town-navigator {
+            position: absolute;
+            top: 140px; /* 位于图层控制下方 */
+            left: 60px;
+            z-index: 1000;
+            background-color: rgba(0, 0, 0, 0.85);
+            padding: 15px;
+            border-radius: 4px;
+            border-right: 4px solid #FF1493; /* 粉色强调色 */
+            color: white;
+            width: 200px;
+            backdrop-filter: blur(5px);
+            box-shadow: 0 0 15px rgba(255, 20, 147, 0.2);
+        }
+
+        .town-navigator h4 {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+            color: #FF1493;
+            border-bottom: 1px solid #444;
+            padding-bottom: 5px;
+        }
+
+        .town-select {
+            width: 100%;
+            background-color: #333;
+            color: #fff;
+            border: 1px solid #555;
+            padding: 8px;
+            border-radius: 4px;
+            outline: none;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        
+        .town-select:hover {
+            border-color: #FF1493;
+        }
+
+        /* --- 弹窗样式优化 --- */
+        .leaflet-popup-content-wrapper {
+            background: rgba(0, 0, 0, 0.9);
+            color: #fff;
+            border: 1px solid #00eaeb;
+            border-radius: 2px;
+        }
+        .leaflet-popup-tip {
+            background: rgba(0, 0, 0, 0.9);
+        }
+        
+        .popup-table {
+            width: 100%;
+            margin-top: 8px;
+            font-size: 12px;
+            border-collapse: collapse;
+        }
+        .popup-table td {
+            padding: 3px 5px;
+            border-bottom: 1px solid #333;
+        }
+        .popup-data {
+            color: #00eaeb;
+            font-weight: bold;
+            text-align: right;
+        }
+        .popup-trend-up { color: #32CD32; }
+        .popup-trend-down { color: #FF4500; }
+
+        /* 修复控件样式 */
+        .leaflet-control-layers, .leaflet-control-measure {
+            background: rgba(0, 0, 0, 0.85) !important;
+            color: #fff !important;
+            border: 1px solid #444 !important;
+        }
+        .leaflet-control-measure .tasks { color: #fff !important; }
+    </style>
+</head>
+<body>
+
+    <!-- 浮动标题 UI -->
+    <div class="custom-title">
+        <h2>数智赋能乡村 · 广汉调研成果</h2>
+        <span class="subtitle">清华大学乡村振兴工作站(广汉支队)</span>
+        <span class="tag">SPATIAL ANALYSIS</span>
+        <span class="tag" style="background-color: #FF1493; color: white;">V 2.5 (Stable)</span>
+    </div>
+
+    <!-- 乡镇快速导航中控台 -->
+    <div class="town-navigator">
+        <h4><i class="fa-solid fa-location-crosshairs"></i> 区域快速定位</h4>
+        <select id="townSelect" class="town-select" onchange="flyToTown(this.value)">
+            <option value="" disabled selected>-- 选择乡镇/区域 --</option>
+            <!-- 选项将通过 JS 动态生成 -->
+        </select>
+    </div>
+
+    <!-- 地图容器 -->
+    <div id="map"></div>
+
+    <!-- 核心库 JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+    <!-- 使用 unpkg 源加载 ant-path -->
+    <script src="https://unpkg.com/leaflet-ant-path@1.3.0/dist/leaflet-ant-path.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-minimap/3.6.1/Control.MiniMap.min.js"></script>
+    <!-- 更换为 unpkg 源加载 leaflet-measure -->
+    <script src="https://unpkg.com/leaflet-measure@3.1.0/dist/leaflet-measure.js"></script>
+
+    <script>
+        // --- 1. 初始化地图 ---
+        const map = L.map('map', {
+            center: [30.98, 104.25],
+            zoom: 12, // 稍微拉近一点
+            zoomControl: false 
+        });
+
+        L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+        const darkLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; OpenStreetMap &copy; CARTO',
+            subdomains: 'abcd',
+            maxZoom: 20
+        }).addTo(map);
+
+        // --- 2. 数据定义：关键节点与乡镇中心 ---
+        
+        // 乡镇/区域导航数据 (中心点)
+        const towns = [
+            { name: "珞城街道 (市中心)", coords: [30.976, 104.251] },
+            { name: "三水镇 (生态)", coords: [30.950, 104.220] },
+            { name: "高坪镇 (产业)", coords: [30.990, 104.280] },
+            { name: "连山镇 (文旅)", coords: [31.020, 104.300] },
+            { name: "三星堆镇 (遗址)", coords: [30.993, 104.205] },
+            { name: "向阳镇 (改革)", coords: [31.050, 104.240] },
+            { name: "金鱼镇 (花木)", coords: [30.940, 104.280] },
+            { name: "南兴镇 (通航)", coords: [30.980, 104.200] },
+            { name: "小汉镇 (农耕)", coords: [31.010, 104.260] },
+            { name: "松林镇 (水果)", coords: [31.040, 104.320] },
+            { name: "金轮镇 (大蒜)", coords: [31.030, 104.180] }
+        ];
+
+        // 详细 POI 节点数据 (18个)
+        const poiData = [
+            // --- 生态与农业组 (Green) ---
+            { name: "易家河坝", coords: [30.95, 104.22], group: "eco", icon: "leaf", desc: "国家级水利风景区，河流生态修复示范点。", stats: { "水质等级": "II类", "日均游客": "2000+" } },
+            { name: "友谊村党群中心", coords: [30.958, 104.235], group: "eco", icon: "building-user", desc: "数字化乡村治理试点，基层党建阵地。", stats: { "服务村民": "3500人", "办事效率": "+40%" } },
+            { name: "金鱼镇花木基地", coords: [30.945, 104.285], group: "eco", icon: "tree", desc: "西部著名的花卉苗木种植基地。", stats: { "种植面积": "1.2万亩", "年产值": "3亿元" } },
+            { name: "金轮大蒜产业园", coords: [31.035, 104.185], group: "eco", icon: "seedling", desc: "特产'金轮大蒜'核心产区。", stats: { "出口占比": "60%", "带动农户": "5000户" } },
+            { name: "松林桃花山", coords: [31.045, 104.325], group: "eco", icon: "mountain-sun", desc: "广汉著名赏花胜地，乡村旅游名片。", stats: { "赏花旺季": "3月", "旅游收入": "5000万" } },
+            { name: "小汉镇高标准农田", coords: [31.015, 104.265], group: "eco", icon: "wheat-awn", desc: "全程机械化耕作示范区。", stats: { "机械化率": "98%", "亩产量": "650kg" } },
+
+            // --- 产业与发展组 (Orange) ---
+            { name: "高坪稻虾基地", coords: [30.99, 104.28], group: "ind", icon: "shrimp", desc: "稻虾共作生态养殖模式推广基地。", stats: { "亩均增收": "3000元", "养殖规模": "5000亩" } },
+            { name: "向阳改革陈列馆", coords: [31.055, 104.245], group: "ind", icon: "landmark", desc: "中国农村改革第一乡历史见证。", stats: { "历史意义": "摘下第一牌", "年访客": "10万" } },
+            { name: "广汉工业集中发展区", coords: [30.965, 104.265], group: "ind", icon: "industry", desc: "先进制造业与现代物流集聚区。", stats: { "入驻企业": "120家", "总产值": "200亿" } },
+            { name: "中飞院 (通航机场)", coords: [30.985, 104.215], group: "ind", icon: "plane-departure", desc: "中国民航飞行员的摇篮，无人机产教融合。", stats: { "年飞行量": "全亚洲第一", "人才输出": "90%" } },
+            { name: "新丰物流园", coords: [30.960, 104.190], group: "ind", icon: "truck-fast", desc: "连接成德眉资的重要物流枢纽。", stats: { "日吞吐量": "5万吨", "覆盖范围": "西南全境" } },
+
+            // --- 文旅与城市组 (Pink/Blue) ---
+            { name: "三星堆博物馆", coords: [30.993, 104.205], group: "tour", icon: "mask", desc: "沉睡数千年，一醒惊天下。古蜀文明之光。", stats: { "馆藏文物": "1000+", "国际知名度": "S级" } },
+            { name: "三星堆考古遗址公园", coords: [30.998, 104.200], group: "tour", icon: "trowel", desc: "持续进行的祭祀坑考古发掘现场。", stats: { "发掘面积": "12km²", "新发现": "黄金面具" } },
+            { name: "房湖公园", coords: [30.978, 104.253], group: "tour", icon: "fan", desc: "唐代名相房琯所建，川西园林典范。", stats: { "古树名木": "12株", "市民休闲": "首选地" } },
+            { name: "广汉文庙", coords: [30.975, 104.250], group: "tour", icon: "scroll", desc: "规模宏大，保存完好的清代文庙建筑群。", stats: { "建筑等级": "国保单位", "活动": "祭孔大典" } },
+            { name: "连山镇政府", coords: [31.020, 104.300], group: "tour", icon: "flag", desc: "统筹连山片区文旅资源调度的指挥中心。", stats: { "数字化": "全覆盖", "响应速度": "快" } },
+            { name: "广汉高铁站", coords: [31.005, 104.290], group: "tour", icon: "train", desc: "成绵乐城际铁路重要站点。", stats: { "成都通达": "18分钟", "日客流": "1.5万" } },
+            { name: "锦花九月", coords: [30.955, 104.285], group: "tour", icon: "camera", desc: "新兴的网红打卡与乡村民宿聚集地。", stats: { "周末入住率": "95%", "好评率": "4.9" } }
+        ];
+
+        // --- 3. 填充乡镇导航下拉框 ---
+        const selectBox = document.getElementById('townSelect');
+        towns.forEach(town => {
+            const option = document.createElement('option');
+            option.value = JSON.stringify(town.coords);
+            option.text = town.name;
+            selectBox.appendChild(option);
+        });
+
+        // 导航功能函数
+        window.flyToTown = function(coordsStr) {
+            if (!coordsStr) return;
+            const coords = JSON.parse(coordsStr);
+            map.flyTo(coords, 14, {
+                duration: 2, // 动画时长2秒
+                easeLinearity: 0.25
+            });
+        };
+
+        // --- 4. 构建图层 ---
+        const layers = {
+            eco: L.layerGroup(),
+            ind: L.layerGroup(),
+            tour: L.layerGroup()
+        };
+
+        // 图标生成器
+        const createIcon = (iconName, color) => L.divIcon({
+            html: `<div style="background-color: ${color}; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 10px ${color}; border: 2px solid #fff;">
+                    <i class="fa-solid fa-${iconName}" style="color: #fff; font-size: 14px;"></i>
+                   </div>`,
+            className: 'custom-poi-icon',
+            iconSize: [30, 30],
+            iconAnchor: [15, 15],
+            popupAnchor: [0, -15]
+        });
+
+        // 遍历添加点位 (POI Data)
+        poiData.forEach(poi => {
+            let color = '#00eaeb'; // 默认青色
+            if (poi.group === 'eco') color = '#32CD32'; // 绿
+            if (poi.group === 'ind') color = '#FFA500'; // 橙
+            if (poi.group === 'tour') color = '#FF1493'; // 粉
+
+            const marker = L.marker(poi.coords, {
+                icon: createIcon(poi.icon, color)
+            });
+
+            let statsHtml = '<table class="popup-table">';
+            for (const [key, value] of Object.entries(poi.stats)) {
+                statsHtml += `<tr><td>${key}</td><td class="popup-data">${value}</td></tr>`;
+            }
+            statsHtml += '</table>';
+
+            const popupContent = `
+                <div style="min-width: 180px;">
+                    <h3 style="margin:0 0 5px 0; color:${color}; border-bottom:1px solid #444; padding-bottom:5px; font-size:14px;">
+                        <i class="fa-solid fa-${poi.icon}"></i> ${poi.name}
+                    </h3>
+                    <div style="font-size:11px; color:#ccc; line-height:1.4;">${poi.desc}</div>
+                    ${statsHtml}
+                </div>
+            `;
+            
+            marker.bindPopup(popupContent);
+            // 修复点：使用 .addLayer() 而不是 .addMarker()
+            layers[poi.group].addLayer(marker);
+        });
+
+        // --- 5. 特殊图层逻辑 (保留所有热力与路线) ---
+        
+        // 5.1 生态连线 (Green) - 湔江绿道
+        const ecoLine = L.polyline([[30.95, 104.22], [30.958, 104.235]], {
+            color: '#32CD32', weight: 4, dashArray: '10, 10'
+        }).bindTooltip("湔江生态绿道").addTo(layers.eco);
+
+        // 5.2 产业热力 (Orange) - 高坪镇区域
+        const heatData = [];
+        for (let i = 0; i < 80; i++) {
+            const lat = 30.99 + (Math.random() - 0.5) * 0.03;
+            const lon = 104.28 + (Math.random() - 0.5) * 0.03;
+            heatData.push([lat, lon, Math.random()]);
+        }
+        const heatLayer = L.heatLayer(heatData, {
+            radius: 30, blur: 20, gradient: {0.4: 'blue', 0.65: 'lime', 1: 'red'}
+        });
+        
+        // 5.3 文旅流线 (Pink) - 三星堆到连山
+        const pathPoints = [[30.993, 104.205], [31.010, 104.25], [31.025, 104.305]];
+        let antPolyline;
+
+        // 容错逻辑：如果 ant-path 加载失败，回退到普通虚线
+        if (typeof L.Polyline.AntPath !== 'undefined') {
+             antPolyline = new L.Polyline.AntPath(pathPoints, {
+                delay: 1000, dashArray: [10, 20], weight: 4, color: "#FF1493", pulseColor: "#FFFFFF"
+            });
+        } else {
+            console.warn("Leaflet AntPath plugin failed to load. Falling back to simple polyline.");
+            antPolyline = L.polyline(pathPoints, {
+                color: "#FF1493", weight: 4, dashArray: '10, 20'
+            });
+        }
+        
+        antPolyline.bindTooltip("客流引导路径").addTo(layers.tour);
+
+
+        // --- 6. 最终图层加载与控件 ---
+        
+        // 默认显示所有图层
+        layers.eco.addTo(map);
+        layers.ind.addTo(map);
+        layers.tour.addTo(map);
+        
+        // 修复：热力图不直接加入，而是通过安全机制加载
+        // heatLayer.addTo(map); <--- 已移除
+
+        // 图层控制器
+        const overlays = {
+            '<span style="color:#32CD32">🍃 生态农业 (三水/金轮)</span>': layers.eco,
+            '<span style="color:#FFA500">🏭 产业发展 (高坪/向阳)</span>': layers.ind,
+            '<span style="color:#FF1493">🎡 文旅体验 (三星堆/连山)</span>': layers.tour,
+            '<span style="color:red">🔥 全域热力图</span>': heatLayer
+        };
+
+        L.control.layers(null, overlays, { collapsed: false, position: 'topright' }).addTo(map);
+
+        // 鹰眼工具
+        const miniMapLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png');
+        new L.Control.MiniMap(miniMapLayer, { toggleDisplay: true, position: 'bottomright' }).addTo(map);
+        
+        // 测距工具 (增加容错判断)
+        if (typeof L.Control.Measure !== 'undefined') {
+            new L.Control.Measure({ 
+                position: 'topright', 
+                primaryLengthUnit: 'meters', 
+                activeColor: '#00eaeb' 
+            }).addTo(map);
+        } else {
+            console.warn("Leaflet Measure plugin failed to load. Measurement tool skipped.");
+        }
+
+        // --- 7. 全局修复：热力图安全加载机制 (V2.5 递归检测) ---
+        
+        function addHeatmapSafe() {
+            const size = map.getSize();
+            // 核心修复逻辑：检测地图容器宽和高是否都大于0
+            if (size.x > 0 && size.y > 0) {
+                map.invalidateSize(); // 确保容器尺寸同步
+                heatLayer.addTo(map); // 安全加载热力图
+                console.log("Heatmap layer loaded safely with map size:", size);
+            } else {
+                console.log("Waiting for valid map container size...");
+                // 如果尺寸仍为0，延迟 100ms 后再次递归检查
+                setTimeout(addHeatmapSafe, 100);
+            }
+        }
+
+        // 启动安全加载检测
+        map.whenReady(function() {
+            addHeatmapSafe();
+        });
+
+    </script>
+</body>
+</html>
